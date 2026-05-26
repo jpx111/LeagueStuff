@@ -1,0 +1,292 @@
+#feature vectors for my league games
+#Time
+#Objectives/time
+#CS/time
+#Kills/time
+#Deaths/time
+#assists/time
+#CC score/time
+#Damage dealt/time
+#damage healed/time
+#damage taken/time
+#self mitigated damage/time
+#Vision score/time
+#Gold Earned/time
+#Gold spent/time
+#Towers destroyed/time
+#Inhibitors destroyed/time
+#mean Team op..GG score
+#17 features
+
+import numpy as np
+np.set_printoptions(linewidth=200)
+np.set_printoptions(formatter={'float': '{: 0.4f}'.format})
+
+winFeatures = np.array([
+    [35,3.66/35,157/35,3/35,10/35,4/35,8/35,10188/35,11648/35,36141/35,23892/35,19/35,10650/35,10150/35,0/35,0/35,np.mean([1.3,5.8,5.6,7.1])],
+    [40,8/40,204/40,16/40,6/40,4/40,23/40,25718/40,16286/40,35205/40,29646/40,25/40,18571/40,17575/40,1/40,0/40,np.mean([4.7,5.3,3.9,5.3])],
+    [43,8/43,279/43,10/43,10/43,18/43,32/43,32887/43,26203/43,57777/43,73426/43,14/43,19576/43, 16800/43,3/43, 0/43, np.mean([6.2,4.6,8.8,5])],
+    [40,7/40,255/40,2/40,9/40,12/40,12/40,13628/40,18360/40,39859/40,25922/40,26/40,16525/40,14625/40,7/40,1/40,np.mean([3.3,4.8,6.5,6.1])],
+])
+
+#Here the array is being mean centered. NOT standardized so this will be used for the rawest of variances. Gemini pointed out exactly why we do this.
+winFeaturesMean = np.mean(winFeatures,axis = 0)
+for i in range(len(winFeatures)):
+    for j in range(len(winFeatures[i])):
+        winFeatures[i][j] = (winFeatures[i][j] - winFeaturesMean[j])
+winFeaturesStd = np.std(winFeatures,axis = 0) #Thank you gemini for pointing out this should be after mean centering.
+
+#Winning RAW Covariance matrix!
+print("Here is the winning RAW covariance matrix.")
+winRawFeaturesTranspose = np.transpose(winFeatures)
+RawProductOfWinning = winRawFeaturesTranspose @ winFeatures
+WinningRawCovariance = np.multiply(RawProductOfWinning,1/len(winFeatures))
+justRawVariancesW = [1] * len(winFeatures[0])
+print(WinningRawCovariance)
+print("Winning RAW Variances Only:")
+for i in range(len(WinningRawCovariance)):
+    justRawVariancesW[i] = float(WinningRawCovariance[i][i])
+print(justRawVariancesW)
+#Winning RAW PCA eigenvectors and values in order: There are some observations here to be noted here
+WRawEigenvalues, WRawEigenvectors = np.linalg.eigh(WinningRawCovariance) #Gemini points out Hermitian to avoid unreal eigenvalues. We have symmetry here so it's impossible to have unreal.
+print("Winning RAW Eigenvalues in ascending order")
+print(WRawEigenvalues)
+print("The RAW respective eigenvectors")
+print(WRawEigenvectors)
+#Here is the Same information but for the actually standardized data. Essentially looked at in terms of z score
+for i in range(len(winFeatures)):
+    for j in range(len(winFeatures[i])):
+        try: #For some reason this is not working. Please don't have a column of all 0s... Gemini says it will generate a time error because it will give you a NaN value. Which isnt a zero error.
+            winFeatures[i][j] = winFeatures[i][j]/winFeaturesStd[j]
+        except ZeroDivisionError:
+            print("GET RID OF ANY 0 COLUMNS") #You can't input an undefined NaN into the eigenvalue function.
+
+#Redoing the multiplication with our new values
+print("Here is the winning standardized covariance matrix.")
+winStandardizedFeaturesTranspose = np.transpose(winFeatures)
+ProductOfWinning = winStandardizedFeaturesTranspose @ winFeatures
+WinningSCovariance = np.multiply(ProductOfWinning,1/len(winFeatures))
+justVariancesW = [1] * len(winFeatures[0])
+print(WinningSCovariance)
+print("Winning standardized Variances Only:")
+for i in range(len(WinningSCovariance)):
+    justVariancesW[i] = float(WinningSCovariance[i][i])#Gemini suggested using floats.
+print(justVariancesW)
+#Winning Standardized PCA eigenvectors and values in order: There are some observations here to be noted here
+WStandardizedEigenvalues, WStandardizedEigenvectors = np.linalg.eigh(WinningSCovariance) #Hermitian to avoid unreal eigenvalues. We have symmetry here so it's impossible to have unreal.
+WStandardizedEigenVectors = WStandardizedEigenvectors
+print("Winning standardized Eigenvalues in ascending order")
+print(WStandardizedEigenvalues)
+print("The standardized respective eigenvectors")
+print(WStandardizedEigenvectors)
+
+#Now to project. I'll start with storing the main eigenvectors. Oh crap this is the wrong kind of projection. Oh well this is geometric. IGNORE THIS
+mainWEigenvectors = np.transpose(np.transpose(WStandardizedEigenvectors)[-3:])
+
+#Here I'm going to introduce the moore penrose inverse. I'll talk about it more later though.
+print("Here are our priority eigenvectors")
+print(mainWEigenvectors)
+projectedPoints = []
+for i in range(len(winFeatures)):
+    currentProjection = np.array(mainWEigenvectors @ np.linalg.pinv(mainWEigenvectors) @ winFeatures[i])
+    projectedPoints.append(currentProjection.tolist())
+projectedPointsWArray = np.array(projectedPoints)
+print("Heres the projection with the original 17 features.")
+print(projectedPointsWArray)
+
+#Here is the "actual" projection
+projectedTruePoints = []
+for i in range(len(winFeatures)):
+    currentTrueProjection = np.array(np.transpose(winFeatures[i]) @ mainWEigenvectors)
+    projectedTruePoints.append(currentTrueProjection.tolist())
+projectedTruePointsWArray = np.array(projectedTruePoints)
+print("Here's your practical projections in reference to principle components")
+print(projectedTruePointsWArray)
+
+
+#BOI now its time to project the data scene onto the space created by the three vectors
+
+ #Look at the stuff for may be minimize variance? or rather i die on spot. Technically I could also do look at the "better wins" but that is pure visual analysis
+#How do I perceive my results for my own benefit?
+
+
+
+lossFeatures = np.array([
+    [32,2/32,168/32,8/32,12/32,6/32,12/32,17749/32,10401/32,34554/32,22613/32,14/32,13695/32,12200/32,0/32,0/32,np.mean([4.3,4.2,4.1,5.0])],
+    [33,1/33,135/33,15/33,9/33,5/33,28/33,31802/33,16332/33,26241/33,15042/33,22/33,15042/33,14575/33,1/33,0/33,np.mean([5.0,4.7,2.5,2.6])],
+    [21,1/21,100/21,2/21,6/21,1/21,3/21,5219/21,9489/21,17857/21,9380/21,12/21,6944/21,6575/21,0/21,0/21,np.mean([4.6,4.5,3.7,4.6])],
+    [31,1/31,161/31,7/31,10/31,5/31,20/31,17605/31,11886/31,39330/31,20764/31,15/31,12836/31,12750/31,0/31,0/31,np.mean([4.3,3.8,3.2,4.1])],
+    [34,3/34,233/34,4/34,9/34,6/34,19/34,17347/34,20294/34,45454/34,3979/34,22/34,12675/34,11975/34,0/34,0/34,np.mean([5.1,4.9,6.1,6.3])],
+    [19,1/19,108/19,0/19,5/19,4/19,11/19,7138/19,6550/19,16769/19,8399/19,11/19,5745/19,5475/19,0/19,0/19,np.mean([2.7,1.0,3.8,2.1])],
+    [23,.66/23,130/23,4/23,11/23,1/23,15/23,11748/23,7793/23,27008/23,15666/23,18/23,8938/23,8575/23,0/23,0/23,np.mean([3.6,3.4,4.3,3.1])],
+    [16,.66/16,101/16,0/16,3/16,0/16,0/16,1121/16,4960/16,10279/16,5571/16,8/16,4699/16,3950/16,0/16,1/16,np.mean([1.8,2.3,4.5,2.8])] ###NOTE ADDED a 1 TO INHIBITORS
+])
+
+#Here the array is being mean centered. NOT standardized so this will be used for the rawest of variances.
+lossFeaturesMean = np.mean(lossFeatures, axis = 0)
+for i in range(len(lossFeatures)):
+    for j in range(len(lossFeatures[i])):
+        lossFeatures[i][j] = (lossFeatures[i][j] - lossFeaturesMean[j])#/lossFeaturesStd[j]
+lossFeaturesStd = np.std(lossFeatures,axis = 0) #Gemini is also responsible for this being done after mean centering. It's just safer boi (even though mathematically right).
+
+#Losing RAW Covariance matrix :(
+lossRawFeaturesTranspose = np.transpose(lossFeatures)
+RawProductOfLoss = lossRawFeaturesTranspose @ lossFeatures
+LosingRawCovariance = np.multiply(RawProductOfLoss,1/len(lossFeatures))
+justRawVariancesL = [1] * len(winFeatures[0])
+print("Losing RAW Variances Only")
+for i in range(len(LosingRawCovariance)):
+    justRawVariancesL[i] =  float(LosingRawCovariance[i][i])
+print(justRawVariancesL)
+#Losing RAW PCA eigenvectors:
+LRawEigenvalues, LRawEigenvectors = np.linalg.eigh(LosingRawCovariance)
+print("Losing RAW Eigenvalues in ascending order")
+print(LRawEigenvalues)
+print("The RAW respective eigenvectors")
+print(LRawEigenvectors)
+print("The Losing RAW Covariance matrix:")
+print(LosingRawCovariance)
+
+#Losing Covariance matrix :(
+for i in range(len(lossFeatures)):
+    for j in range(len(lossFeatures[i])):
+        try:  # For some reason this is not working. Please don't have a column of all 0s...
+            lossFeatures[i][j] = (lossFeatures[i][j])/lossFeaturesStd[j]
+        except ZeroDivisionError:
+            print("GET RID OF ANY 0 COLUMNS") #You can't input an undefined NaN into the eigenvalue function.
+
+print("Here is the losing Standardized covariance matrix:")
+lossStandardizedFeaturesTranspose = np.transpose(lossFeatures)
+ProductOfLoss = lossStandardizedFeaturesTranspose @ lossFeatures
+LosingSCovariance = np.multiply(ProductOfLoss,1/len(lossFeatures))
+justVariancesL = [1] * len(winFeatures[0])
+print("Losing Standardized Variances Only")
+for i in range(len(LosingSCovariance)):
+    justVariancesL[i] =  float(LosingSCovariance[i][i])
+print(justVariancesL)
+
+#Losing PCA eigenvectors:
+LStandardizedEigenvalues, LStandardizedEigenvectors = np.linalg.eigh(LosingSCovariance)
+print("Losing Standardized Eigenvalues in ascending order")
+print(LStandardizedEigenvalues)
+print("The Standardized respective eigenvectors")
+print(LStandardizedEigenvectors)
+print("The Losing Covariance matrix:")
+print(LosingSCovariance)
+
+#Now to project. I'll start with storing the main eigenvectors
+mainLEigenvectors = np.transpose(np.transpose(LStandardizedEigenvectors)[-3:])
+
+#This is also the wrong kind of projection but. Yk. Symmetry and completionism.
+print("Here's the prioritiy eigenvectors for losing ")
+print(mainLEigenvectors)
+projectedPointsL = []
+for i in range(len(lossFeatures)):
+    currentProjection = np.array(mainLEigenvectors @ np.linalg.pinv(mainLEigenvectors) @ lossFeatures[i])
+    projectedPointsL.append(currentProjection.tolist())
+projectedPointsLArray = np.array(projectedPointsL)
+print("And heres those 17 component projections for losing ")
+print(projectedPointsLArray)
+
+#Here is the "actual" loss projection
+projectedLTruePoints = []
+for i in range(len(lossFeatures)):
+    currentTrueProjection = np.array(np.transpose(lossFeatures[i]) @ mainLEigenvectors)
+    projectedLTruePoints.append(currentTrueProjection.tolist())
+projectedTruePointsLArray = np.array(projectedLTruePoints)
+print("Here's your real losing projection ones")
+print(projectedTruePointsLArray)
+
+
+
+#Time for linear regression now and projection stuff! Thank you gemini for pushing me in a direction. It told me to use it as a predictor, and I'm going to implement that in my own way now.
+#Let's start with wins.
+#From here I'm going to establish an equation with the already established values
+#Here I'm going to use normalized data according to the same z score rules. If I did Max min normalization which is value minus min all over max minus min, outliers will be very prominent.
+#Ill just grab winFeatures which is already normalized at this point
+#This will store the constant value while we replace one of the rows with ones. In other words its our "b"
+
+#Data in the moment should also be made adapted to in real time gameplay.
+constantValueWin = []
+
+#Popping time, mean score, Gemini told me to use splicing to make a new feature because arrays are super annoying.
+#makes a new list with the spliced. Removes time and the gg score because its hard to calculate in the moment.
+linRegWinFeaturesList = []
+for i in range(len(winFeatures)):
+    linRegWinFeaturesList.append(winFeatures[i][1:len(winFeatures[i])-1])
+
+linRegWinFeaturesArray = np.array(linRegWinFeaturesList)
+
+#This is for later normalizing. !!!!!!!!!!!!!!!!HERE JUST SPLICE
+newLinRegWMean = winFeaturesMean[1:len(winFeatures[0])-1]
+newLinRegWStd = winFeaturesStd[1:len(winFeatures[0])-1]
+
+#Appends the last one as the constant.
+for i in range(len(linRegWinFeaturesArray)):
+    constantValueWin.append(linRegWinFeaturesArray[i][len(linRegWinFeaturesArray[i])-1])
+    linRegWinFeaturesArray[i][len(linRegWinFeaturesArray[i])-1] = 1
+
+#linRegWinFeaturesArray is now our "M"
+#Now we use our handy dandy equation for finding for our letter variables
+linRegWinFeaturesTranspose = np.transpose(linRegWinFeaturesArray)
+#Notice you must have at least 15 data points though... Which I don't. Technically the equation I'd get from this is WRONG. Notice that the invertibility will arise
+#I came across this problem when I did my least squares project. Gemini reminded me of its existence and I will despite it for that. However it did suggest a pinv which I researched.
+#Here is the ideal situation usability:
+#winningXVector = inv((linRegWinFeaturesTranspose @ winFeatures)) @ linRegWinFeaturesTranspose @ constantValueWin
+#Here is the used one:
+#"Moore-Penrose pseudoinverse"
+#Interestingly this uses SVD so I'll talk about that too
+
+#We have our coefficients here or rather our Normal!
+winningXVector = np.array(np.linalg.pinv(linRegWinFeaturesArray) @ constantValueWin)
+
+#Heres the coefficients for your very high dimension plane.
+print("Winning Plane Coefficients")
+print(winningXVector)
+
+#Now we must project onto this plane. Let's put our input here. I'm just gonna take some data from one of my swiftplay games.
+inputVectorW = np.multiply(np.array([2,270,11,4,2,13,26715,24889,38047,26224,17,20369,16900,2,1]), 1/29)
+inputVectorL = inputVectorW.copy()
+#We have to normalize this by z score.
+#Which means we also have to change the mean. Dang this is getting really troublesome.
+
+for i in range(len(inputVectorW)):
+    inputVectorW[i] = (inputVectorW[i] - newLinRegWMean[i])/newLinRegWStd[i]
+
+#Project onto the normal to find the error.
+print("Winning Error magnitude:")
+winningErrorMagnitude = np.linalg.norm(np.multiply(winningXVector, float(inputVectorW @ winningXVector) / (pow(np.linalg.norm(winningXVector),2))))
+
+print(winningErrorMagnitude)
+#Time to do it all again but with losing.
+constantValueLoss = []
+
+linRegLossFeaturesList = []
+for i in range(len(lossFeatures)):
+    linRegLossFeaturesList.append(lossFeatures[i][1:len(lossFeatures[i])-1])
+
+linRegLossFeaturesArray = np.array(linRegLossFeaturesList)
+
+newLinRegLMean = lossFeaturesMean[1:len(lossFeatures[0])-1]
+newLinRegLStd = lossFeaturesStd[1:len(lossFeatures[0])-1]
+
+for i in range(len(linRegLossFeaturesArray)):
+    constantValueLoss.append(linRegLossFeaturesArray[i][len(linRegLossFeaturesArray[i])-1])
+    linRegLossFeaturesArray[i][len(linRegLossFeaturesArray[i])-1] = 1
+
+linRegLossFeaturesTranspose = np.transpose(linRegLossFeaturesArray)
+losingXVector = np.array(np.linalg.pinv(linRegLossFeaturesArray) @ constantValueLoss)
+print("Losing Plane Coefficients")
+print(losingXVector)
+
+for i in range(len(inputVectorL)):
+    inputVectorL[i] = (inputVectorL[i] - newLinRegLMean[i])/newLinRegLStd[i]
+print("Losing Error magnitude:")
+losingErrorMagnitude = np.linalg.norm(np.multiply(losingXVector, float(inputVectorL @ losingXVector) / (pow(np.linalg.norm(losingXVector),2))))
+
+print(losingErrorMagnitude)
+
+if (winningErrorMagnitude < losingErrorMagnitude):
+    print("hey you're on track for a win!")
+else:
+    print("you're on track for a loss")
