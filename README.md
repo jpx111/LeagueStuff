@@ -4,4 +4,4 @@ Welcome to my personal league project!	This is something I spent a good amount o
 
 If you weren’t there for the presentation or want an active interpretation of my slides, I’d go down to the white slide and from there you can find my detailed slides. You’ll also be able to find my code on the github link I created, and if you so wish you can input your data, but I warn you now there’s no fast function I implemented for this. Do so if you dare. 
 
-Here is the slideshow I've created for your entertainment and learning. https://drive.google.com/file/d/1hlwbtcKzSzvb6lc_4hJGsqT0XJ47twb0/view?usp=sharing
+Email me at jpxmdc@gmail.com for the slides!
